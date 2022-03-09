@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "aws-cdk-lib": "2.15.0",
+    "aws-xray-sdk-mysql": "^3.3.4",
     "constructs": "^10.0.0",
     "esbuild": "^0.14.25",
     "mysql": "^2.18.1",

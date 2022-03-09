@@ -1,17 +1,21 @@
-const AWS = require('aws-sdk');
-AWS.config.update({region:'us-east-1'});
-var client = new AWS.SecretsManager({
-      region: 'us-east-1'
-});
+var AWSXRay = require('aws-xray-sdk-core');
+
+const AWS = AWSXRay.captureAWS(require('aws-sdk'));
+
+var client = new AWS.SecretsManager();
 var mysql = require('mysql');
-const fs = require('fs');
+
+var captureMySQL = require('aws-xray-sdk-mysql');
+
+var mysql = captureMySQL(require('mysql'));
+
 
 exports.handler = async function(event:any) {
   console.log("request:", JSON.stringify(event, undefined, 2));
   console.log(`Getting secret for ${process.env.RDS_SECRET_NAME}`);
   
   // All requests get routed to this function, when opened via browser it looks for a favicon.
-  if(event.rawPath === '/favicon.ico'){
+  if(event.path === '/favicon.ico'){
     return sendRes(404, 'no favicon here');
   }
 
@@ -20,14 +24,16 @@ exports.handler = async function(event:any) {
   let {username, password} = JSON.parse(secret.SecretString);
   process.env.PROXY_ENDPOINT;
   
+  // TODO: move to try catch around createConnection line 54
   // Important to note that the ssl cert is not the standard RDS cert.
   // https://www.amazontrust.com/repository/AmazonRootCA1.pem
   var connection = mysql.createConnection({
     host     :  process.env.PROXY_ENDPOINT,
     user     :  username,
     password :  password,
+    database: 'cdkpatterns',
     ssl  : {
-      ca : fs.readFileSync(__dirname + '/AmazonRootCA1.pem')
+      rejectUnauthorized: false
     }
   });
   
@@ -51,7 +57,7 @@ exports.handler = async function(event:any) {
     password :  password,
     database: 'cdkpatterns',
     ssl  : {
-      ca : fs.readFileSync(__dirname + '/AmazonRootCA1.pem')
+      rejectUnauthorized: false
     }
   });
   
@@ -68,7 +74,7 @@ exports.handler = async function(event:any) {
   
   // Insert a new record with an auto generated ID and the url you hit on the API Gateway
   await new Promise( (resolve,reject) => {
-    connection.query(`INSERT INTO rds_proxy(url) VALUES ('${event.rawPath}')`, function (error:any, results:any, fields:any) {
+    connection.query(`INSERT INTO rds_proxy(url) VALUES ('${event.path}')`, function (error:any, results:any, fields:any) {
       if (error) throw error;
       // connected!
       resolve('INSERT query returned '+JSON.stringify(results));

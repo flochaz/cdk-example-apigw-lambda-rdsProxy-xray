@@ -1,12 +1,12 @@
-import { CfnOutput, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
+import { CfnOutput, Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as secrets from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as lambda from 'aws-cdk-lib/aws-lambda-nodejs';
+import {Tracing}  from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
-import * as integrations from 'aws-cdk-lib/aws-appintegrations';
 
 export class CdkPatternApigLambdaAuroraStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -45,7 +45,7 @@ export class CdkPatternApigLambdaAuroraStack extends Stack {
 
     new ssm.StringParameter(this, 'DBCredentialsArn', {
       parameterName: 'rds-credentials-arn',
-      stringValue: databaseCredentialsSecret.secretArn,
+      stringValue: databaseCredentialsSecret.secretName,
     });
 
     // MySQL DB Instance (delete protection turned off because pattern is for learning.)
@@ -81,17 +81,19 @@ export class CdkPatternApigLambdaAuroraStack extends Stack {
     const rdsLambda = new lambda.NodejsFunction(this, 'RDSLambda', {
       vpc: vpc,
       securityGroups: [lambdaToRDSProxyGroup],
+      tracing: Tracing.ACTIVE,
       environment: {
         PROXY_ENDPOINT: proxy.endpoint,
-        RDS_SECRET_NAME: id+'-rds-credentials'
-      }
+        RDS_SECRET_NAME: databaseCredentialsSecret.secretArn
+      },
+      timeout: Duration.seconds(30),
     });
 
     databaseCredentialsSecret.grantRead(rdsLambda);
 
     // defines an API Gateway Http API resource backed by our "rdsLambda" function.
     let api = new apigw.LambdaRestApi(this, 'Endpoint', {
-        handler: rdsLambda
+        handler: rdsLambda,
     });
 
    new CfnOutput(this, 'HTTP API Url', {
