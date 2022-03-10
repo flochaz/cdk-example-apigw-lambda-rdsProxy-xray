@@ -48,22 +48,36 @@ export class CdkPatternApigLambdaAuroraStack extends Stack {
       stringValue: databaseCredentialsSecret.secretName,
     });
 
-    // MySQL DB Instance (delete protection turned off because pattern is for learning.)
-    // re-enable delete protection for a real implementation
-    const rdsInstance = new rds.DatabaseInstance(this, 'DBInstance', {
-      engine: rds.DatabaseInstanceEngine.mysql({
-        version: rds.MysqlEngineVersion.VER_5_7_30
+    const cluster = new rds.DatabaseCluster(this, 'DatabaseCluster', {
+      defaultDatabaseName: 'cdkpatterns',
+      engine: rds.DatabaseClusterEngine.auroraMysql({
+        version: rds.AuroraMysqlEngineVersion.VER_5_7_12,
       }),
       credentials: rds.Credentials.fromSecret(databaseCredentialsSecret),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL),
-      vpc,
+      instanceProps: {
+        instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL),
+        vpc,
+        securityGroups: [dbConnectionGroup]
+      },
       removalPolicy: RemovalPolicy.DESTROY,
       deletionProtection: false,
-      securityGroups: [dbConnectionGroup]
     });
+    // // MySQL DB Instance (delete protection turned off because pattern is for learning.)
+    // // re-enable delete protection for a real implementation
+    // const rdsInstance = new rds.DatabaseInstance(this, 'DBInstance', {
+    //   engine: rds.DatabaseInstanceEngine.mysql({
+    //     version: rds.MysqlEngineVersion.VER_5_7_30
+    //   }),
+    //   credentials: rds.Credentials.fromSecret(databaseCredentialsSecret),
+    //   instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE2, ec2.InstanceSize.SMALL),
+    //   vpc,
+    //   removalPolicy: RemovalPolicy.DESTROY,
+    //   deletionProtection: false,
+    //   securityGroups: [dbConnectionGroup]
+    // });
 
     // Create an RDS Proxy
-    const proxy = rdsInstance.addProxy(id+'-proxy', {
+    const proxy = cluster.addProxy(id+'aurora-proxy', {
         secrets: [databaseCredentialsSecret],
         debugLogging: true,
         vpc,
