@@ -77,7 +77,6 @@ exports.handler = async function (event: any) {
       resolve('done sleeping');
     }, 5000);
     subSegment.addError('sleep test error in a subsegment', false);
-    currentSegment.addFaultFlag();
   });
   subSegment.close();
   // If this is our first execution, create our rds_proxy table inside cdkpatterns
