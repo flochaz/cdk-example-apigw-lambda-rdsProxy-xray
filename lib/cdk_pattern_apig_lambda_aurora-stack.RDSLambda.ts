@@ -67,6 +67,19 @@ exports.handler = async function (event: any) {
     },
   });
 
+  const currentSegment = AWSXRay.getSegment();
+  const subSegment = currentSegment.addNewSubsegment('Test sub');
+  // sleep for 5 seconds to simulate a long running query
+  subSegment.addAnnotation('sleep test annotation', '5');
+  subSegment.addMetadata('sleep test metadata', '5');
+  await new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve('done sleeping');
+    }, 5000);
+    subSegment.addError('sleep test error in a subsegment', false);
+    currentSegment.addFaultFlag();
+  });
+  subSegment.close();
   // If this is our first execution, create our rds_proxy table inside cdkpatterns
   await new Promise((resolve, reject) => {
     const queryString = 'CREATE TABLE IF NOT EXISTS rds_proxy (id INT AUTO_INCREMENT PRIMARY KEY, url VARCHAR(20))';
@@ -90,7 +103,7 @@ exports.handler = async function (event: any) {
   await new Promise((resolve, reject) => {
     const queryString = `INSERT INTO rds_proxy(url) VALUES ('${event.path}')`;
     connection.query(queryString, function (error: any, results: any, fields: any) {
-      if (error) throw error;
+      if (event.path === '/fail' || error) throw new Error(error? error.message : 'fake failure message');
       // connected!
       resolve('INSERT query returned ' + JSON.stringify(results));
     });
